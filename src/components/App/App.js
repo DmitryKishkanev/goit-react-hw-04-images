@@ -44,7 +44,7 @@ export default function App() {
   };
 
   const addImage = newQuery => {
-    setSearchQuery(newQuery);
+    setSearchQuery(newQuery.trim());
     setSearchPage(1);
     setImageResults([]);
   };
