@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import { useState, useEffect } from 'react';
 import Searchbar from 'components/Searchbar';
 import * as API from 'components/Services/api';
 import ImageGallery from 'components/ImageGallery';
@@ -7,70 +7,54 @@ import Loader from 'components/Loader';
 import Modal from 'components/Modal';
 import { Container } from 'components/App/App.styled';
 
-class App extends Component {
-  state = {
-    image: '',
-    imageResults: [],
-    searchPage: 1,
-    isLoading: false,
-    showModal: false,
-    largeImage: {},
-  };
+export default function App() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [imageResults, setImageResults] = useState([]);
+  const [searchPage, setSearchPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [largeImage, setLargeImage] = useState({});
+  const [error, setError] = useState(null);
 
-  async componentDidUpdate(_, prevState) {
-    const prevImage = prevState.image.trim();
-    const nextImage = this.state.image.trim();
+  useEffect(() => {
+    if (!searchQuery) {
+      return;
+    }
 
-    if (nextImage && nextImage !== prevImage) {
+    const fetchImages = async () => {
       try {
-        this.setState({ searchPage: 1, isLoading: true });
-        const images = await API.getImages(nextImage);
-        this.setState(
-          {
-            imageResults: images,
-            searchPage: this.state.searchPage + 1,
-            isLoading: false,
-          },
-          this.scrollToBottom,
-        );
+        setIsLoading(true);
+        const images = await API.getImages(searchQuery, searchPage);
+        setImageResults(prevImage => [...prevImage, ...images]);
+
+        scrollToBottom();
       } catch (error) {
+        setError(error.message);
         console.log(error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-  }
+    };
 
-  addImage = newImage => {
-    this.setState({ image: newImage });
+    fetchImages();
+  }, [searchQuery, searchPage]);
+
+  const loadMoreImages = () => {
+    setSearchPage(prevSearchPage => prevSearchPage + 1);
   };
 
-  loadMoreImages = async () => {
-    try {
-      this.setState({ isLoading: true });
-      const moreImages = await API.getImages(
-        this.state.image,
-        this.state.searchPage,
-      );
-      this.setState(
-        state => ({
-          imageResults: [...state.imageResults, ...moreImages],
-          searchPage: this.state.searchPage + 1,
-          isLoading: false,
-        }),
-        this.scrollToBottom,
-      );
-    } catch (error) {
-      console.log(error);
-    }
+  const addImage = newQuery => {
+    setSearchQuery(newQuery);
+    setSearchPage(1);
+    setImageResults([]);
   };
 
-  toggleModal = content => {
-    this.setState(prev => ({
-      showModal: !prev.showModal,
-      largeImage: content,
-    }));
+  const toggleModal = content => {
+    setShowModal(prevShowModal => !prevShowModal);
+    setLargeImage(content);
   };
 
-  scrollToBottom = () => {
+  const scrollToBottom = () => {
     requestAnimationFrame(() => {
       window.scrollTo({
         top: document.body.scrollHeight,
@@ -79,32 +63,25 @@ class App extends Component {
     });
   };
 
-  render() {
-    const { image, imageResults, isLoading, showModal } = this.state;
+  return (
+    <Container>
+      <Searchbar onSubmit={addImage} />
 
-    return (
-      <Container>
-        <Searchbar onSubmit={this.addImage} />
+      {error && <h2>Ой ошибка, всё пропало!!!</h2>}
 
-        <ImageGallery images={imageResults} ontoggleModal={this.toggleModal} />
+      <ImageGallery images={imageResults} ontoggleModal={toggleModal} />
 
-        {isLoading && <Loader />}
+      {isLoading && <Loader />}
 
-        {!isLoading && image && imageResults.length === 0 && (
-          <p style={{ color: 'red' }}>
-            Ой, по запросу {this.state.image} ничего не найдено, попробуйте ещё
-            раз.
-          </p>
-        )}
+      {!isLoading && searchQuery && imageResults.length === 0 && !error && (
+        <p style={{ color: 'red' }}>
+          Ой, по запросу {searchQuery} ничего не найдено, попробуйте ещё раз.
+        </p>
+      )}
 
-        {imageResults.length > 0 && <Button loadMore={this.loadMoreImages} />}
+      {imageResults.length > 0 && <Button loadMore={loadMoreImages} />}
 
-        {showModal && (
-          <Modal content={this.state.largeImage} onClose={this.toggleModal} />
-        )}
-      </Container>
-    );
-  }
+      {showModal && <Modal content={largeImage} onClose={toggleModal} />}
+    </Container>
+  );
 }
-
-export default App;
